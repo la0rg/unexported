@@ -37,8 +37,8 @@ type options struct {
 	SkipFuncReturns bool
 }
 
-func run(opts *options) func(*analysis.Pass) (interface{}, error) {
-	return func(pass *analysis.Pass) (interface{}, error) {
+func run(opts *options) func(*analysis.Pass) (any, error) {
+	return func(pass *analysis.Pass) (any, error) {
 		inspector := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
 		analyzer := &analyzer{pass: pass, opts: opts}
 
@@ -60,7 +60,7 @@ type analyzer struct {
 	opts *options
 }
 
-func (a *analyzer) funcDecl(f *ast.FuncDecl) {
+func (a analyzer) funcDecl(f *ast.FuncDecl) {
 	if !f.Name.IsExported() {
 		return
 	}
@@ -84,7 +84,7 @@ func (a *analyzer) funcDecl(f *ast.FuncDecl) {
 	}
 }
 
-func (a *analyzer) typeSpec(t *ast.TypeSpec) {
+func (a analyzer) typeSpec(t *ast.TypeSpec) {
 	if !t.Name.IsExported() || a.opts.SkipTypes {
 		return
 	}
@@ -108,7 +108,7 @@ func (a *analyzer) fieldList(description string, fields *ast.FieldList) {
 	}
 }
 
-func (a *analyzer) receiverType(f *ast.FuncDecl) types.Type {
+func (a analyzer) receiverType(f *ast.FuncDecl) types.Type {
 	if f.Recv == nil || len(f.Recv.List) == 0 {
 		return nil
 	}
@@ -116,7 +116,7 @@ func (a *analyzer) receiverType(f *ast.FuncDecl) types.Type {
 	return a.pass.TypesInfo.TypeOf(f.Recv.List[0].Type)
 }
 
-func (a *analyzer) isUnexportedTypes(ts ...types.Type) (string, bool) {
+func (a analyzer) isUnexportedTypes(ts ...types.Type) (string, bool) {
 	for _, t := range ts {
 		if name, unexported := a.isUnexported(t); unexported {
 			return name, true
@@ -125,7 +125,7 @@ func (a *analyzer) isUnexportedTypes(ts ...types.Type) (string, bool) {
 	return "", false
 }
 
-func (a *analyzer) isUnexported(t types.Type) (string, bool) {
+func (a analyzer) isUnexported(t types.Type) (string, bool) {
 	switch T := t.(type) {
 	case *types.Named:
 		// skip builtins
