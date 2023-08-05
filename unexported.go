@@ -14,9 +14,11 @@ import (
 // NewAnalyzer returns a new analyzer that checks that exported functions and types use only exported types in their signatures.
 func NewAnalyzer() *analysis.Analyzer {
 	opts := new(options)
-
-	flagset := flag.NewFlagSet("unexported", flag.ExitOnError)
-	flagset.BoolVar(&opts.SkipInterfaces, "skip-interfaces", false, "Skip interfaces from analysis (for both functions and types)")
+	flags := flag.FlagSet{}
+	flags.BoolVar(&opts.SkipInterfaces, "skip-interfaces", false, "when set, interfaces are excluded from analysis")
+	flags.BoolVar(&opts.SkipTypes, "skip-types", false, "when set, types are excluded from analysis")
+	flags.BoolVar(&opts.SkipFuncArgs, "skip-func-args", false, "when set, function arguments are excluded from analysis")
+	flags.BoolVar(&opts.SkipFuncReturns, "skip-func-returns", false, "when set, function return parameters are excluded from analysis")
 
 	return &analysis.Analyzer{
 		Name:     "unexported",
@@ -24,12 +26,15 @@ func NewAnalyzer() *analysis.Analyzer {
 		URL:      "https://github.com/la0rg/unexported",
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
 		Run:      run(opts),
-		Flags:    *flagset,
+		Flags:    flags,
 	}
 }
 
 type options struct {
-	SkipInterfaces bool
+	SkipInterfaces  bool
+	SkipTypes       bool
+	SkipFuncArgs    bool
+	SkipFuncReturns bool
 }
 
 func run(opts *options) func(*analysis.Pass) (interface{}, error) {
@@ -70,12 +75,17 @@ func (a *analyzer) funcDecl(f *ast.FuncDecl) {
 		description = fmt.Sprintf("method %s", f.Name)
 	}
 
-	a.fieldList(description, f.Type.Results)
-	a.fieldList(description, f.Type.Params)
+	if !a.opts.SkipFuncArgs {
+		a.fieldList(description, f.Type.Params)
+	}
+
+	if !a.opts.SkipFuncReturns {
+		a.fieldList(description, f.Type.Results)
+	}
 }
 
 func (a *analyzer) typeSpec(t *ast.TypeSpec) {
-	if !t.Name.IsExported() {
+	if !t.Name.IsExported() || a.opts.SkipTypes {
 		return
 	}
 

@@ -12,10 +12,22 @@ func TestAnalyzer(t *testing.T) {
 }
 
 func TestAnalyzerOptions(t *testing.T) {
-	testdata := analysistest.TestData()
+	cases := []struct {
+		pkg  string
+		flag string
+	}{
+		{pkg: "option/t", flag: "skip-types"},
+		{pkg: "option/a", flag: "skip-func-args"},
+		{pkg: "option/r", flag: "skip-func-returns"},
+		{pkg: "option/i", flag: "skip-interfaces"},
+	}
 
-	analyzer := NewAnalyzer()
-	analyzer.Flags.Set("skip-interfaces", "true")
-
-	analysistest.RunWithSuggestedFixes(t, testdata, analyzer, "o")
+	for _, c := range cases {
+		t.Run(c.pkg, func(t *testing.T) {
+			testdata := analysistest.TestData()
+			analyzer := NewAnalyzer()
+			analyzer.Flags.Set(c.flag, "true")
+			analysistest.Run(t, testdata, analyzer, c.pkg)
+		})
+	}
 }
