@@ -55,7 +55,7 @@ type unexportedInterfaceType interface {
 func UnexportedNamedInterface(unexportedInterfaceType) {} // want "unexported"
 
 type ExportedInterfaceType interface {
-	Exported() unexported
+	Exported()
 }
 
 func ExportedNamedInterface(ExportedInterfaceType) {}

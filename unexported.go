@@ -29,11 +29,13 @@ type analyzer struct{}
 func (a *analyzer) run(pass *analysis.Pass) (interface{}, error) {
 	inspector := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
 
-	nodeFilter := []ast.Node{(*ast.FuncDecl)(nil)}
+	nodeFilter := []ast.Node{(*ast.FuncDecl)(nil), (*ast.TypeSpec)(nil)}
 	inspector.Preorder(nodeFilter, func(n ast.Node) {
 		switch n := n.(type) {
 		case *ast.FuncDecl:
 			a.analyzeFuncDecl(pass, n)
+		case *ast.TypeSpec:
+			a.analyzeTypeSpec(pass, n)
 		}
 	})
 	return nil, nil
@@ -45,7 +47,7 @@ func (a *analyzer) analyzeFuncDecl(pass *analysis.Pass, f *ast.FuncDecl) {
 	}
 
 	// skip methods of unexported types
-	if isUnexported(a.receiverType(pass, f)) {
+	if _, unexported := isUnexported(a.receiverType(pass, f)); unexported {
 		return
 	}
 
@@ -56,7 +58,17 @@ func (a *analyzer) analyzeFuncDecl(pass *analysis.Pass, f *ast.FuncDecl) {
 
 	a.analyzeFieldList(pass, description, f.Type.Results)
 	a.analyzeFieldList(pass, description, f.Type.Params)
-	a.analyzeFieldList(pass, description, f.Type.TypeParams)
+}
+
+func (a *analyzer) analyzeTypeSpec(pass *analysis.Pass, t *ast.TypeSpec) {
+	if !t.Name.IsExported() {
+		return
+	}
+
+	declType := pass.TypesInfo.TypeOf(t.Type)
+	if typeName, unexported := isUnexported(declType); unexported {
+		pass.Reportf(t.Pos(), "unexported type %s is used in the exported type declaration %s", typeName, t.Name)
+	}
 }
 
 func (a *analyzer) analyzeFieldList(pass *analysis.Pass, description string, fields *ast.FieldList) {
@@ -66,8 +78,8 @@ func (a *analyzer) analyzeFieldList(pass *analysis.Pass, description string, fie
 
 	for _, field := range fields.List {
 		fieldType := pass.TypesInfo.TypeOf(field.Type)
-		if isUnexported(fieldType) {
-			pass.Reportf(field.Pos(), "unexported %s is used in the exported %s", fieldType, description)
+		if typeName, unexported := isUnexported(fieldType); unexported {
+			pass.Reportf(field.Pos(), "unexported type %s is used in the exported %s", typeName, description)
 		}
 	}
 }
@@ -80,47 +92,69 @@ func (a *analyzer) receiverType(pass *analysis.Pass, f *ast.FuncDecl) types.Type
 	return pass.TypesInfo.TypeOf(f.Recv.List[0].Type)
 }
 
-func isUnexported(t types.Type) bool {
+func isUnexported(t types.Type) (string, bool) {
 	switch T := t.(type) {
 	case *types.Named:
 		// skip builtins
 		if T.Obj().Pkg() == nil {
-			return false
+			return "", false
 		}
 
-		return !T.Obj().Exported()
+		return T.Obj().Name(), !T.Obj().Exported()
 
 	case *types.Struct:
 		for i := 0; i < T.NumFields(); i++ {
-			if isUnexported(T.Field(i).Type()) {
-				return true
+			// skip unexported fields
+			// TODO: this is definitely needed for type declarations, but it might be redundant for function declarations
+			if !T.Field(i).Exported() {
+				continue
+			}
+
+			if name, unexported := isUnexported(T.Field(i).Type()); unexported {
+				return name, true
 			}
 		}
 
 	case *types.Tuple:
 		for i := 0; i < T.Len(); i++ {
-			if isUnexported(T.At(i).Type()) {
-				return true
+			if name, unexported := isUnexported(T.At(i).Type()); unexported {
+				return name, true
 			}
 		}
 
 	case *types.Signature:
-		return isUnexported(T.Params()) || isUnexported(T.Results())
+		if name, unexported := isUnexported(T.Params()); unexported {
+			return name, true
+		}
+
+		if name, unexported := isUnexported(T.Results()); unexported {
+			return name, true
+		}
 
 	case *types.Interface:
 		for i := 0; i < T.NumMethods(); i++ {
-			if isUnexported(T.Method(i).Type()) {
-				return true
+			if !T.Method(i).Exported() {
+				continue
+			}
+
+			if name, unexported := isUnexported(T.Method(i).Type()); unexported {
+				return name, true
 			}
 		}
 
 	case *types.Map:
-		return isUnexported(T.Key()) || isUnexported(T.Elem())
+		if name, unexported := isUnexported(T.Key()); unexported {
+			return name, true
+		}
+
+		if name, unexported := isUnexported(T.Elem()); unexported {
+			return name, true
+		}
 
 	case interface{ Elem() types.Type }:
 		return isUnexported(T.Elem())
 	}
 
 	// otherwise assume it's exported to avoid false positives
-	return false
+	return "", false
 }
