@@ -6,7 +6,7 @@ type Exported struct{}
 
 func NoReturn() {}
 
-func UnexportedType() unexported { // want `unexported type`
+func UnexportedType() unexported { // want `unexported`
 	return unexported{}
 }
 
@@ -14,7 +14,7 @@ func ExportedType() Exported {
 	return Exported{}
 }
 
-func UnexportedPointer() *unexported { // want `unexported type`
+func UnexportedPointer() *unexported { // want `unexported`
 	return nil
 }
 
@@ -22,7 +22,7 @@ func ExportedPointer() *Exported {
 	return nil
 }
 
-func UnexportedStruct() struct{ U unexported } { // want `unexported type`
+func UnexportedStruct() struct{ U unexported } { // want `unexported`
 	return struct{ U unexported }{}
 }
 
@@ -30,7 +30,7 @@ func ExportedStruct() struct{ e Exported } {
 	return struct{ e Exported }{}
 }
 
-func UnexportedTuple() (unexported, error) { // want `unexported type`
+func UnexportedTuple() (unexported, error) { // want `unexported`
 	return unexported{}, nil
 }
 
@@ -38,7 +38,7 @@ func ExportedTuple() (Exported, error) {
 	return Exported{}, nil
 }
 
-func UnexportedFunctionType() func() unexported { // want `unexported type`
+func UnexportedFunctionType() func() unexported { // want `unexported`
 	return nil
 }
 
@@ -46,7 +46,7 @@ func ExportedFunctionType() func() Exported {
 	return nil
 }
 
-func UnexportedFunctionArgType() func(u unexported) { // want `unexported type`
+func UnexportedFunctionArgType() func(u unexported) { // want `unexported`
 	return nil
 }
 
@@ -54,7 +54,7 @@ func ExportedFunctionArgType() func(exported Exported) {
 	return nil
 }
 
-func UnexportedInterface() interface{ E() unexported } { // want `unexported type`
+func UnexportedInterface() interface{ E() unexported } { // want `unexported`
 	return nil
 }
 
@@ -62,11 +62,11 @@ func ExportedInterface() interface{ e() Exported } {
 	return nil
 }
 
-func UnexportedMapKey() map[unexported]Exported { // want `unexported type`
+func UnexportedMapKey() map[unexported]Exported { // want `unexported`
 	return nil
 }
 
-func UnexportedMapValue() map[Exported]unexported { // want `unexported type`
+func UnexportedMapValue() map[Exported]unexported { // want `unexported`
 	return nil
 }
 
@@ -82,7 +82,7 @@ func (Exported) unexportedMethodsAreSkipped() unexported {
 	return unexported{}
 }
 
-func (Exported) UnexportedType() unexported { // want `unexported type`
+func (Exported) UnexportedType() unexported { // want `unexported`
 	return unexported{}
 }
 

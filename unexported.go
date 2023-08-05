@@ -67,7 +67,7 @@ func (a *analyzer) analyzeFieldList(pass *analysis.Pass, description string, fie
 	for _, field := range fields.List {
 		fieldType := pass.TypesInfo.TypeOf(field.Type)
 		if isUnexported(fieldType) {
-			pass.Reportf(field.Pos(), "unexported type %s is used in the exported %s", fieldType, description)
+			pass.Reportf(field.Pos(), "unexported %s is used in the exported %s", fieldType, description)
 		}
 	}
 }
@@ -116,10 +116,6 @@ func isUnexported(t types.Type) bool {
 
 	case *types.Map:
 		return isUnexported(T.Key()) || isUnexported(T.Elem())
-
-	// case *types.TypeParam:
-	//
-	// case *types.Union:
 
 	case interface{ Elem() types.Type }:
 		return isUnexported(T.Elem())
