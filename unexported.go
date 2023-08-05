@@ -14,6 +14,10 @@ import (
 func NewAnalyzer() *analysis.Analyzer {
 	analyzer := &analyzer{
 		// TODO add skip settings
+		// SkipInterfaces
+		// RegexpFileSkip
+		// SkipTypes
+		// SkipFunctions
 	}
 	return &analysis.Analyzer{
 		Name:     "unexported",
@@ -92,6 +96,15 @@ func (a *analyzer) receiverType(pass *analysis.Pass, f *ast.FuncDecl) types.Type
 	return pass.TypesInfo.TypeOf(f.Recv.List[0].Type)
 }
 
+func isUnexportedTypes(ts ...types.Type) (string, bool) {
+	for _, t := range ts {
+		if name, unexported := isUnexported(t); unexported {
+			return name, true
+		}
+	}
+	return "", false
+}
+
 func isUnexported(t types.Type) (string, bool) {
 	switch T := t.(type) {
 	case *types.Named:
@@ -103,53 +116,35 @@ func isUnexported(t types.Type) (string, bool) {
 		return T.Obj().Name(), !T.Obj().Exported()
 
 	case *types.Struct:
+		var fields = make([]types.Type, 0, T.NumFields())
 		for i := 0; i < T.NumFields(); i++ {
-			// skip unexported fields
-			// TODO: this is definitely needed for type declarations, but it might be redundant for function declarations
-			if !T.Field(i).Exported() {
-				continue
-			}
-
-			if name, unexported := isUnexported(T.Field(i).Type()); unexported {
-				return name, true
+			if T.Field(i).Exported() {
+				fields = append(fields, T.Field(i).Type())
 			}
 		}
+		return isUnexportedTypes(fields...)
 
 	case *types.Tuple:
+		var vars = make([]types.Type, 0, T.Len())
 		for i := 0; i < T.Len(); i++ {
-			if name, unexported := isUnexported(T.At(i).Type()); unexported {
-				return name, true
-			}
+			vars = append(vars, T.At(i).Type())
 		}
+		return isUnexportedTypes(vars...)
 
 	case *types.Signature:
-		if name, unexported := isUnexported(T.Params()); unexported {
-			return name, true
-		}
-
-		if name, unexported := isUnexported(T.Results()); unexported {
-			return name, true
-		}
+		return isUnexportedTypes(T.Params(), T.Results())
 
 	case *types.Interface:
+		var methods = make([]types.Type, 0, T.NumMethods())
 		for i := 0; i < T.NumMethods(); i++ {
-			if !T.Method(i).Exported() {
-				continue
-			}
-
-			if name, unexported := isUnexported(T.Method(i).Type()); unexported {
-				return name, true
+			if T.Method(i).Exported() {
+				methods = append(methods, T.Method(i).Type())
 			}
 		}
+		return isUnexportedTypes(methods...)
 
 	case *types.Map:
-		if name, unexported := isUnexported(T.Key()); unexported {
-			return name, true
-		}
-
-		if name, unexported := isUnexported(T.Elem()); unexported {
-			return name, true
-		}
+		return isUnexportedTypes(T.Key(), T.Elem())
 
 	case interface{ Elem() types.Type }:
 		return isUnexported(T.Elem())
