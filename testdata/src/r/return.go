@@ -98,6 +98,6 @@ func (unexported) UnexportedType() unexported { // no report for methods of unex
 	return unexported{}
 }
 
-func (unexported) ExportedType() Exported { // no report for methods of unexported types
+func (unexported) ExportedType() Exported {
 	return Exported{}
 }

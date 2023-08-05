@@ -1,4 +1,4 @@
-package unexported
+package main
 
 import (
 	"golang.org/x/tools/go/analysis/singlechecker"
@@ -7,5 +7,5 @@ import (
 )
 
 func main() {
-	singlechecker.Main(unexported.Analyzer)
+	singlechecker.Main(unexported.NewAnalyzer())
 }
