@@ -15,10 +15,10 @@ easy to integrate `unexported` with your own analysis driver program.
 
 ## Flags
 The "unexported" analyzer supports the following flags:
--skip-interfaces: When set, interfaces are excluded from the analysis.
--skip-types: When set, types are excluded from the analysis.
--skip-func-args: When set, function arguments are excluded from the analysis.
--skip-func-returns: When set, function return parameters are excluded from the analysis.
+- `skip-interfaces`: When set, interfaces are excluded from the analysis.
+- `skip-types`: When set, types are excluded from the analysis.
+- `skip-func-args`: When set, function arguments are excluded from the analysis.
+- `skip-func-returns`: When set, function return parameters are excluded from the analysis.
 
 ## Command-Line Tool
 This repository also includes a command-line tool to run the "unexported" analyzer on your code. 
