@@ -13,9 +13,8 @@ go get github.com/la0rg/unexported
 
 import "github.com/la0rg/unexported"
 ```
-The `unexported.NewAnalyzer()` follows guidelines in the
-[`golang.org/x/tools/go/analysis`][xanalysis] package. This should make it
-easy to integrate `unexported` with your own analysis driver program.
+The `unexported.NewAnalyzer()` follows guidelines in the [xanalysis](https://pkg.go.dev/golang.org/x/tools/go/analysis) 
+package. This should make it easy to integrate `unexported` with your own analysis driver program.
 
 ## Flags
 The "unexported" analyzer supports the following flags:
