@@ -12,7 +12,9 @@ import (
 
 // NewAnalyzer returns a new analyzer that checks that exported functions and types use only exported types in their signatures.
 func NewAnalyzer() *analysis.Analyzer {
-	analyzer := &analyzer{}
+	analyzer := &analyzer{
+		// TODO add skip settings
+	}
 	return &analysis.Analyzer{
 		Name:     "unexported",
 		Doc:      "check that exported functions do not accept/return unexported types",
@@ -22,31 +24,28 @@ func NewAnalyzer() *analysis.Analyzer {
 	}
 }
 
-type analyzer struct {
-	pass *analysis.Pass
-}
+type analyzer struct{}
 
 func (a *analyzer) run(pass *analysis.Pass) (interface{}, error) {
-	a.pass = pass
 	inspector := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
 
 	nodeFilter := []ast.Node{(*ast.FuncDecl)(nil)}
 	inspector.Preorder(nodeFilter, func(n ast.Node) {
 		switch n := n.(type) {
 		case *ast.FuncDecl:
-			a.analyzeFuncDecl(n)
+			a.analyzeFuncDecl(pass, n)
 		}
 	})
 	return nil, nil
 }
 
-func (a *analyzer) analyzeFuncDecl(f *ast.FuncDecl) {
+func (a *analyzer) analyzeFuncDecl(pass *analysis.Pass, f *ast.FuncDecl) {
 	if !f.Name.IsExported() {
 		return
 	}
 
 	// skip methods of unexported types
-	if isUnexported(a.receiverType(f)) {
+	if isUnexported(a.receiverType(pass, f)) {
 		return
 	}
 
@@ -55,30 +54,30 @@ func (a *analyzer) analyzeFuncDecl(f *ast.FuncDecl) {
 		description = fmt.Sprintf("method %s", f.Name)
 	}
 
-	a.analyzeFieldList(description, f.Type.Results)
-	a.analyzeFieldList(description, f.Type.Params)
-	a.analyzeFieldList(description, f.Type.TypeParams)
+	a.analyzeFieldList(pass, description, f.Type.Results)
+	a.analyzeFieldList(pass, description, f.Type.Params)
+	a.analyzeFieldList(pass, description, f.Type.TypeParams)
 }
 
-func (a *analyzer) analyzeFieldList(description string, fields *ast.FieldList) {
+func (a *analyzer) analyzeFieldList(pass *analysis.Pass, description string, fields *ast.FieldList) {
 	if fields == nil {
 		return
 	}
 
 	for _, field := range fields.List {
-		fieldType := a.pass.TypesInfo.TypeOf(field.Type)
+		fieldType := pass.TypesInfo.TypeOf(field.Type)
 		if isUnexported(fieldType) {
-			a.pass.Reportf(field.Pos(), "unexported type %s is used in the exported %s", fieldType, description)
+			pass.Reportf(field.Pos(), "unexported type %s is used in the exported %s", fieldType, description)
 		}
 	}
 }
 
-func (a *analyzer) receiverType(f *ast.FuncDecl) types.Type {
+func (a *analyzer) receiverType(pass *analysis.Pass, f *ast.FuncDecl) types.Type {
 	if f.Recv == nil || len(f.Recv.List) == 0 {
 		return nil
 	}
 
-	return a.pass.TypesInfo.TypeOf(f.Recv.List[0].Type)
+	return pass.TypesInfo.TypeOf(f.Recv.List[0].Type)
 }
 
 func isUnexported(t types.Type) bool {
