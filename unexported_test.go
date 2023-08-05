@@ -26,7 +26,9 @@ func TestAnalyzerOptions(t *testing.T) {
 		t.Run(c.pkg, func(t *testing.T) {
 			testdata := analysistest.TestData()
 			analyzer := NewAnalyzer()
-			analyzer.Flags.Set(c.flag, "true")
+			if err := analyzer.Flags.Set(c.flag, "true"); err != nil {
+				t.Fatal(err)
+			}
 			analysistest.Run(t, testdata, analyzer, c.pkg)
 		})
 	}
