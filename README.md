@@ -1,4 +1,8 @@
 # unexported
+[![Go Reference](https://pkg.go.dev/badge/github.com/la0rg/unexported.svg)](https://pkg.go.dev/github.com/la0rg/unexported)
+[![Go Report Card](https://goreportcard.com/badge/github.com/la0rg/unexported)](https://goreportcard.com/report/github.com/la0rg/unexported)
+[![ci](https://github.com/la0rg/unexported/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/la0rg/unexported/actions/workflows/ci.yml)
+
 `unexported` provides a Go analyzer module.
 The analyzer is designed to check that exported functions and types use only exported types in their signatures. 
 This helps to enforce best practices in Go code and ensures that the public API doesn't rely on unexported types.
