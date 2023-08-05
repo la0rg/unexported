@@ -1,14 +1,15 @@
-name: go
+name: ci
 
 on:
   push:
-    branches: [ $default-branch ]
+    branches:
+      - 'master'
   pull_request:
-    branches: [ $default-branch ]
+    branches:
+      - 'master'
 
 jobs:
-
-  build:
+  all:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
@@ -21,5 +22,11 @@ jobs:
     - name: Build
       run: go build -v ./...
 
+    - name: Lint
+      uses: golangci/golangci-lint-action@v3
+      with:
+        version: v1.53
+        install-mode: "goinstall"
+
     - name: Test
-      run: go test -v ./...
+      run: go test -v -race -cover ./...
