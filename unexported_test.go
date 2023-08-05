@@ -8,5 +8,5 @@ import (
 
 func TestAnalyzer(t *testing.T) {
 	testdata := analysistest.TestData()
-	analysistest.Run(t, testdata, Analyzer, "a", "r")
+	analysistest.Run(t, testdata, NewAnalyzer(), "a", "r")
 }

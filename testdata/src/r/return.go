@@ -4,6 +4,8 @@ type unexported struct{}
 
 type Exported struct{}
 
+func NoReturn() {}
+
 func UnexportedType() unexported { // want `unexported type`
 	return unexported{}
 }
