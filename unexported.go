@@ -1,6 +1,7 @@
 package unexported
 
 import (
+	"flag"
 	"fmt"
 	"go/ast"
 	"go/types"
@@ -12,46 +13,55 @@ import (
 
 // NewAnalyzer returns a new analyzer that checks that exported functions and types use only exported types in their signatures.
 func NewAnalyzer() *analysis.Analyzer {
-	analyzer := &analyzer{
-		// TODO add skip settings
-		// SkipInterfaces
-		// RegexpFileSkip
-		// SkipTypes
-		// SkipFunctions
-	}
+	opts := new(options)
+
+	flagset := flag.NewFlagSet("unexported", flag.ExitOnError)
+	flagset.BoolVar(&opts.SkipInterfaces, "skip-interfaces", false, "Skip interfaces from analysis (for both functions and types)")
+
 	return &analysis.Analyzer{
 		Name:     "unexported",
 		Doc:      "check that exported functions do not accept/return unexported types",
 		URL:      "https://github.com/la0rg/unexported",
 		Requires: []*analysis.Analyzer{inspect.Analyzer},
-		Run:      analyzer.run,
+		Run:      run(opts),
+		Flags:    *flagset,
 	}
 }
 
-type analyzer struct{}
-
-func (a *analyzer) run(pass *analysis.Pass) (interface{}, error) {
-	inspector := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
-
-	nodeFilter := []ast.Node{(*ast.FuncDecl)(nil), (*ast.TypeSpec)(nil)}
-	inspector.Preorder(nodeFilter, func(n ast.Node) {
-		switch n := n.(type) {
-		case *ast.FuncDecl:
-			a.analyzeFuncDecl(pass, n)
-		case *ast.TypeSpec:
-			a.analyzeTypeSpec(pass, n)
-		}
-	})
-	return nil, nil
+type options struct {
+	SkipInterfaces bool
 }
 
-func (a *analyzer) analyzeFuncDecl(pass *analysis.Pass, f *ast.FuncDecl) {
+func run(opts *options) func(*analysis.Pass) (interface{}, error) {
+	return func(pass *analysis.Pass) (interface{}, error) {
+		inspector := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
+		analyzer := &analyzer{pass: pass, opts: opts}
+
+		nodeFilter := []ast.Node{(*ast.FuncDecl)(nil), (*ast.TypeSpec)(nil)}
+		inspector.Preorder(nodeFilter, func(n ast.Node) {
+			switch n := n.(type) {
+			case *ast.FuncDecl:
+				analyzer.funcDecl(n)
+			case *ast.TypeSpec:
+				analyzer.typeSpec(n)
+			}
+		})
+		return nil, nil
+	}
+}
+
+type analyzer struct {
+	pass *analysis.Pass
+	opts *options
+}
+
+func (a *analyzer) funcDecl(f *ast.FuncDecl) {
 	if !f.Name.IsExported() {
 		return
 	}
 
 	// skip methods of unexported types
-	if _, unexported := isUnexported(a.receiverType(pass, f)); unexported {
+	if _, unexported := a.isUnexported(a.receiverType(f)); unexported {
 		return
 	}
 
@@ -60,56 +70,60 @@ func (a *analyzer) analyzeFuncDecl(pass *analysis.Pass, f *ast.FuncDecl) {
 		description = fmt.Sprintf("method %s", f.Name)
 	}
 
-	a.analyzeFieldList(pass, description, f.Type.Results)
-	a.analyzeFieldList(pass, description, f.Type.Params)
+	a.fieldList(description, f.Type.Results)
+	a.fieldList(description, f.Type.Params)
 }
 
-func (a *analyzer) analyzeTypeSpec(pass *analysis.Pass, t *ast.TypeSpec) {
+func (a *analyzer) typeSpec(t *ast.TypeSpec) {
 	if !t.Name.IsExported() {
 		return
 	}
 
-	declType := pass.TypesInfo.TypeOf(t.Type)
-	if typeName, unexported := isUnexported(declType); unexported {
-		pass.Reportf(t.Pos(), "unexported type %s is used in the exported type declaration %s", typeName, t.Name)
+	declType := a.pass.TypesInfo.TypeOf(t.Type)
+	if typeName, unexported := a.isUnexported(declType); unexported {
+		a.pass.Reportf(t.Pos(), "unexported type %s is used in the exported type declaration %s", typeName, t.Name)
 	}
 }
 
-func (a *analyzer) analyzeFieldList(pass *analysis.Pass, description string, fields *ast.FieldList) {
+func (a *analyzer) fieldList(description string, fields *ast.FieldList) {
 	if fields == nil {
 		return
 	}
 
 	for _, field := range fields.List {
-		fieldType := pass.TypesInfo.TypeOf(field.Type)
-		if typeName, unexported := isUnexported(fieldType); unexported {
-			pass.Reportf(field.Pos(), "unexported type %s is used in the exported %s", typeName, description)
+		fieldType := a.pass.TypesInfo.TypeOf(field.Type)
+		if typeName, unexported := a.isUnexported(fieldType); unexported {
+			a.pass.Reportf(field.Pos(), "unexported type %s is used in the exported %s", typeName, description)
 		}
 	}
 }
 
-func (a *analyzer) receiverType(pass *analysis.Pass, f *ast.FuncDecl) types.Type {
+func (a *analyzer) receiverType(f *ast.FuncDecl) types.Type {
 	if f.Recv == nil || len(f.Recv.List) == 0 {
 		return nil
 	}
 
-	return pass.TypesInfo.TypeOf(f.Recv.List[0].Type)
+	return a.pass.TypesInfo.TypeOf(f.Recv.List[0].Type)
 }
 
-func isUnexportedTypes(ts ...types.Type) (string, bool) {
+func (a *analyzer) isUnexportedTypes(ts ...types.Type) (string, bool) {
 	for _, t := range ts {
-		if name, unexported := isUnexported(t); unexported {
+		if name, unexported := a.isUnexported(t); unexported {
 			return name, true
 		}
 	}
 	return "", false
 }
 
-func isUnexported(t types.Type) (string, bool) {
+func (a *analyzer) isUnexported(t types.Type) (string, bool) {
 	switch T := t.(type) {
 	case *types.Named:
 		// skip builtins
 		if T.Obj().Pkg() == nil {
+			return "", false
+		}
+
+		if _, isInterface := T.Underlying().(*types.Interface); isInterface && a.opts.SkipInterfaces {
 			return "", false
 		}
 
@@ -122,17 +136,17 @@ func isUnexported(t types.Type) (string, bool) {
 				fields = append(fields, T.Field(i).Type())
 			}
 		}
-		return isUnexportedTypes(fields...)
+		return a.isUnexportedTypes(fields...)
 
 	case *types.Tuple:
 		var vars = make([]types.Type, 0, T.Len())
 		for i := 0; i < T.Len(); i++ {
 			vars = append(vars, T.At(i).Type())
 		}
-		return isUnexportedTypes(vars...)
+		return a.isUnexportedTypes(vars...)
 
 	case *types.Signature:
-		return isUnexportedTypes(T.Params(), T.Results())
+		return a.isUnexportedTypes(T.Params(), T.Results())
 
 	case *types.Interface:
 		var methods = make([]types.Type, 0, T.NumMethods())
@@ -141,13 +155,13 @@ func isUnexported(t types.Type) (string, bool) {
 				methods = append(methods, T.Method(i).Type())
 			}
 		}
-		return isUnexportedTypes(methods...)
+		return a.isUnexportedTypes(methods...)
 
 	case *types.Map:
-		return isUnexportedTypes(T.Key(), T.Elem())
+		return a.isUnexportedTypes(T.Key(), T.Elem())
 
 	case interface{ Elem() types.Type }:
-		return isUnexported(T.Elem())
+		return a.isUnexported(T.Elem())
 	}
 
 	// otherwise assume it's exported to avoid false positives
